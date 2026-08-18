@@ -100,10 +100,10 @@
             autoIntervalSelect.value = "0";
         };
 
-        const speakText = (txt) => {
+        const speakSuccess = () => {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(txt);
+                const utterance = new SpeechSynthesisUtterance("Success");
                 utterance.rate = 1.1;
                 utterance.pitch = 1.2;
                 window.speechSynthesis.speak(utterance);
@@ -141,7 +141,6 @@
                     throw new Error("Invalid JSON response from Ping: " + pingResultText);
                 }
 
-                // Check TrackDrive Success criteria (usually success: true or valid ping_id / match)
                 const pingId = pingJson.ping_id || pingJson.id || pingJson.pingId;
                 const isSuccessful = pingJson.success === true || pingJson.matched === true || pingId;
 
@@ -180,8 +179,7 @@
                 responseContent.textContent = "--- PING RESULT ---\n" + JSON.stringify(pingJson, null, 2) + 
                                             "\n\n--- POST RESULT ---\n" + JSON.stringify(postJson, null, 2);
 
-                // Extract dynamic target phone number if provided in post/ping response
-                let rawNum = postJson.phone_number || postJson.dynamicPhoneNumber || pingJson.phone_number;
+                let rawNum = postJson.phone_number || postJson.phoneNumber || postJson.dynamicPhoneNumber || pingJson.phone_number;
                 if (rawNum) {
                     let cleanNum = rawNum.replace(/^\+/, '');
                     if (cleanNum.startsWith('1') && cleanNum.length === 11) {
