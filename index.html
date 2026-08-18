@@ -60,18 +60,32 @@
             </div>
             
             <!-- DID Display & Copy Action -->
-            <div id="didContainer" class="hidden flex items-center justify-between bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg">
-                <div class="font-mono text-emerald-900 font-medium">
-                    <span class="text-slate-500 text-[10px] block uppercase">Target Phone Number</span>
-                    <span id="didText" class="text-sm">--</span>
+            <div id="didContainer" class="hidden space-y-2">
+                <div class="flex items-center justify-between bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
+                    <div class="font-mono text-emerald-900 font-medium">
+                        <span class="text-slate-500 text-[10px] block uppercase">Target Phone Number</span>
+                        <span id="didText" class="text-base font-bold">--</span>
+                    </div>
+                    <button type="button" id="copyDidBtn" onclick="copyDid()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-md transition flex items-center space-x-1.5 shadow-sm font-medium">
+                        <i class="fa-regular fa-copy"></i>
+                        <span id="copyBtnText">Copy Number</span>
+                    </button>
                 </div>
-                <button type="button" id="copyDidBtn" onclick="copyDid()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-md transition flex items-center space-x-1.5 shadow-sm">
-                    <i class="fa-regular fa-copy"></i>
-                    <span id="copyBtnText">Copy Number</span>
-                </button>
+
+                <!-- Expire In Seconds Box -->
+                <div id="expireContainer" class="hidden flex items-center justify-between bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg font-mono">
+                    <span class="text-amber-800 text-[10px] uppercase font-semibold">Expire In Seconds:</span>
+                    <span id="expireText" class="text-amber-900 font-bold text-sm">--</span>
+                </div>
+
+                <!-- Call Min Duration Box -->
+                <div id="durationContainer" class="hidden flex items-center justify-between bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg font-mono">
+                    <span class="text-slate-500 text-[10px] uppercase font-semibold">Call Min Duration:</span>
+                    <span id="durationText" class="text-slate-800 font-bold text-sm">--</span>
+                </div>
             </div>
 
-            <div id="responseContent" class="overflow-x-auto whitespace-pre-wrap break-all font-mono text-slate-600"></div>
+            <div id="responseContent" class="overflow-x-auto whitespace-pre-wrap break-all font-mono text-slate-600 pt-2"></div>
         </div>
     </div>
 
@@ -87,6 +101,10 @@
         const autoIntervalSelect = document.getElementById('auto_interval');
         const didContainer = document.getElementById('didContainer');
         const didText = document.getElementById('didText');
+        const expireContainer = document.getElementById('expireContainer');
+        const expireText = document.getElementById('expireText');
+        const durationContainer = document.getElementById('durationContainer');
+        const durationText = document.getElementById('durationText');
         const copyBtnText = document.getElementById('copyBtnText');
 
         let autoPingTimer = null;
@@ -141,7 +159,14 @@
                     throw new Error("Invalid JSON response from Ping: " + pingResultText);
                 }
 
-                const pingId = pingJson.ping_id || pingJson.id || pingJson.pingId;
+                // Extract ping_id robustly from nested structures
+                const pingId = pingJson.try_all_buyers_ping_id || 
+                               pingJson.try_all_buyers?.ping_id || 
+                               (pingJson.buyers && pingJson.buyers[0]?.ping_id) || 
+                               pingJson.ping_id || 
+                               pingJson.id || 
+                               pingJson.pingId;
+
                 const isSuccessful = pingJson.success === true || pingJson.matched === true || pingId;
 
                 if (!isSuccessful) {
@@ -179,7 +204,18 @@
                 responseContent.textContent = "--- PING RESULT ---\n" + JSON.stringify(pingJson, null, 2) + 
                                             "\n\n--- POST RESULT ---\n" + JSON.stringify(postJson, null, 2);
 
-                let rawNum = postJson.phone_number || postJson.phoneNumber || postJson.dynamicPhoneNumber || pingJson.phone_number;
+                // Extract values from post or ping responses
+                let rawNum = postJson.phone_number || postJson.dynamicPhoneNumber || pingJson.phone_number;
+                
+                // Expire field check
+                let expireVal = postJson.ping_ids_expiry_in_seconds || pingJson.ping_ids_expiry_in_seconds || postJson.expireInSeconds || pingJson.expireInSeconds;
+
+                // Duration field check (e.g., current_conversion_duration from buyers array or root)
+                let durationVal = postJson.current_conversion_duration || 
+                                  pingJson.current_conversion_duration || 
+                                  (postJson.buyers && postJson.buyers[0]?.current_conversion_duration) ||
+                                  (pingJson.buyers && pingJson.buyers[0]?.current_conversion_duration);
+
                 if (rawNum) {
                     let cleanNum = rawNum.replace(/^\+/, '');
                     if (cleanNum.startsWith('1') && cleanNum.length === 11) {
@@ -188,13 +224,28 @@
                     lastExtractedDid = cleanNum;
                     didText.textContent = lastExtractedDid;
                     didContainer.classList.remove('hidden');
-                    
-                    stopAutoPing();
-                    speakSuccess();
                 } else {
                     didContainer.classList.add('hidden');
-                    speakSuccess();
                 }
+
+                // Display Expire In Seconds
+                if (expireVal !== undefined && expireVal !== null && expireVal !== '') {
+                    expireText.textContent = expireVal;
+                    expireContainer.classList.remove('hidden');
+                } else {
+                    expireContainer.classList.add('hidden');
+                }
+
+                // Display Call Min Duration
+                if (durationVal !== undefined && durationVal !== null && durationVal !== '') {
+                    durationText.textContent = durationVal + "s";
+                    durationContainer.classList.remove('hidden');
+                } else {
+                    durationContainer.classList.add('hidden');
+                }
+
+                stopAutoPing();
+                speakSuccess();
 
                 statusText.textContent = "Success";
                 statusText.className = "text-xs font-medium text-emerald-200";
@@ -205,6 +256,8 @@
                 responseTimestamp.textContent = new Date().toLocaleTimeString();
                 responseContent.textContent = "Error: " + error.message;
                 didContainer.classList.add('hidden');
+                expireContainer.classList.add('hidden');
+                durationContainer.classList.add('hidden');
                 
                 statusText.textContent = "Error";
                 statusText.className = "text-xs font-medium text-rose-200";
